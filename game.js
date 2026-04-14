@@ -18,18 +18,20 @@ let lastTime = 0;
 let timerInterval;
 
 const player = {
-    x: canvas.width / 2,
-    y: canvas.height / 2,
+    x: 400,
+    y: 300,
     size: 40,
     speed: 5,
     emoji: '🛵',
     dx: 0,
     dy: 0,
-    hasOrder: false,
-    target: null
+    hasOrder: false
 };
 
-// Map Objects
+// Map Settings
+const tileSize = 100; // Size of a city block
+const streetWidth = 40;
+
 let restaurants = [];
 let houses = [];
 let currentOrder = null;
@@ -45,24 +47,24 @@ const assets = {
 function init() {
     score = 0;
     timeLeft = 60;
-    player.x = canvas.width / 2;
-    player.y = canvas.height / 2;
+    player.x = 420;
+    player.y = 320;
     player.hasOrder = false;
-    player.target = null;
     
-    // Generate static buildings
+    // Position restaurants at intersections
     restaurants = [
-        { x: 50, y: 50, emoji: assets.restaurant },
-        { x: 700, y: 50, emoji: assets.restaurant },
-        { x: 50, y: 500, emoji: assets.restaurant },
+        { x: 100, y: 100, emoji: assets.restaurant },
+        { x: 700, y: 100, emoji: assets.restaurant },
+        { x: 100, y: 500, emoji: assets.restaurant },
         { x: 700, y: 500, emoji: assets.restaurant }
     ];
     
     houses = [];
-    for(let i = 0; i < 8; i++) {
+    const gridPoints = [200, 300, 400, 500, 600];
+    for(let i = 0; i < 10; i++) {
         houses.push({
-            x: 150 + Math.random() * 500,
-            y: 100 + Math.random() * 400,
+            x: gridPoints[Math.floor(Math.random() * gridPoints.length)],
+            y: gridPoints[Math.floor(Math.random() * gridPoints.length)],
             emoji: assets.house
         });
     }
@@ -100,7 +102,6 @@ function update(deltaTime) {
 
     handleInput();
 
-    // Move player
     player.x += player.dx;
     player.y += player.dy;
 
@@ -108,21 +109,20 @@ function update(deltaTime) {
     player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
     player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
-    // Collision Check
     const dist = (x1, y1, x2, y2) => Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
 
     if (!player.hasOrder && currentOrder) {
-        if (dist(player.x + 20, player.y + 20, currentOrder.x + 20, currentOrder.y + 20) < 40) {
+        if (dist(player.x + 20, player.y + 20, currentOrder.x, currentOrder.y) < 40) {
             player.hasOrder = true;
             currentOrder = null;
             spawnDelivery();
         }
     } else if (player.hasOrder && currentDelivery) {
-        if (dist(player.x + 20, player.y + 20, currentDelivery.x + 20, currentDelivery.y + 20) < 40) {
+        if (dist(player.x + 20, player.y + 20, currentDelivery.x, currentDelivery.y) < 40) {
             player.hasOrder = false;
             currentDelivery = null;
             score++;
-            timeLeft += 5; // Bonus time
+            timeLeft += 8; // Extra time reward
             scoreElement.innerText = score;
             spawnOrder();
         }
@@ -132,83 +132,111 @@ function update(deltaTime) {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Map (Background Detail)
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 2;
-    for(let i = 0; i < canvas.width; i+=50) {
-        ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke();
-    }
-    for(let i = 0; i < canvas.height; i+=50) {
-        ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(canvas.width,i);ctx.stroke();
-    }
+    // 1. Draw City Grid (Streets and Blocks)
+    drawStreets();
 
-    // Draw Buildings
+    // 2. Draw Buildings
     ctx.font = '30px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    restaurants.forEach(r => {
-        ctx.fillText(r.emoji, r.x + 20, r.y + 20);
-    });
+    restaurants.forEach(r => ctx.fillText(r.emoji, r.x, r.y));
+    houses.forEach(h => ctx.fillText(h.emoji, h.x, h.y));
 
-    houses.forEach(h => {
-        ctx.fillText(h.emoji, h.x + 20, h.y + 20);
-    });
+    // 3. Draw GPS Route (The "Better GPS")
+    const target = player.hasOrder ? currentDelivery : currentOrder;
+    if (target) {
+        drawGPS(target);
+    }
 
-    // Draw Items
+    // 4. Items
     if (currentOrder) {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'yellow';
-        ctx.fillText(currentOrder.emoji, currentOrder.x + 20, currentOrder.y + 20);
-        
-        // Indicator
-        drawIndicator(currentOrder);
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#ffcc00';
+        ctx.fillText(currentOrder.emoji, currentOrder.x, currentOrder.y);
     }
-
     if (currentDelivery) {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'red';
-        ctx.fillText(currentDelivery.emoji, currentDelivery.x + 20, currentDelivery.y + 20);
-        
-        // Indicator
-        drawIndicator(currentDelivery);
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#ff3333';
+        ctx.fillText(currentDelivery.emoji, currentDelivery.x, currentDelivery.y);
     }
-
     ctx.shadowBlur = 0;
 
-    // Draw Player
+    // 5. Draw Player
     ctx.font = '40px serif';
     ctx.fillText(player.emoji, player.x + 20, player.y + 20);
     
     if(player.hasOrder) {
         ctx.font = '20px serif';
-        ctx.fillText(assets.order, player.x + 20, player.y - 10);
+        ctx.fillText(assets.order, player.x + 20, player.y - 15);
     }
 }
 
-function drawIndicator(target) {
-    const dx = target.x - player.x;
-    const dy = target.y - player.y;
-    const distance = Math.sqrt(dx*dx + dy*dy);
+function drawStreets() {
+    // Fill Background with Block Color
+    ctx.fillStyle = '#2c3e50'; 
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw Streets
+    ctx.fillStyle = '#34495e'; // Street Color
     
-    if(distance > 150) {
-        const angle = Math.atan2(dy, dx);
-        const radius = 60;
-        const ix = player.x + 20 + Math.cos(angle) * radius;
-        const iy = player.y + 20 + Math.sin(angle) * radius;
-        
-        ctx.save();
-        ctx.translate(ix, iy);
-        ctx.rotate(angle);
-        ctx.fillStyle = player.hasOrder ? '#ff3333' : '#ffcc00';
+    // Vertical Streets
+    for(let x = 0; x <= canvas.width; x += 100) {
+        ctx.fillRect(x - streetWidth/2, 0, streetWidth, canvas.height);
+        // Paint Lane Lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.setLineDash([10, 10]);
         ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(-5, 7);
-        ctx.lineTo(-5, -7);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+        ctx.stroke();
     }
+    
+    // Horizontal Streets
+    for(let y = 0; y <= canvas.height; y += 100) {
+        ctx.fillRect(0, y - streetWidth/2, canvas.width, streetWidth);
+        // Paint Lane Lines
+        ctx.beginPath();
+        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]);
+}
+
+function drawGPS(target) {
+    // Draw glowing line to target
+    ctx.strokeStyle = player.hasOrder ? 'rgba(255, 51, 51, 0.4)' : 'rgba(255, 204, 0, 0.4)';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(player.x + 20, player.y + 20);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Distance Label near player
+    const dx = target.x - (player.x + 20);
+    const dy = target.y - (player.y + 20);
+    const dist = Math.round(Math.sqrt(dx*dx + dy*dy) / 10);
+    
+    ctx.font = 'bold 14px Outfit';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${dist}m`, player.x + 20, player.y + 60);
+
+    // Directional Arrow Indicator
+    const angle = Math.atan2(dy, dx);
+    const radius = 50;
+    const ix = player.x + 20 + Math.cos(angle) * radius;
+    const iy = player.y + 20 + Math.sin(angle) * radius;
+    
+    ctx.save();
+    ctx.translate(ix, iy);
+    ctx.rotate(angle);
+    ctx.fillStyle = player.hasOrder ? '#ff3333' : '#ffcc00';
+    ctx.beginPath();
+    ctx.moveTo(10, 0); ctx.lineTo(-5, 7); ctx.lineTo(-5, -7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
 }
 
 function gameLoop(timestamp) {
@@ -230,6 +258,7 @@ function startGame() {
     gameOverScreen.classList.add('hidden');
     hud.classList.remove('hidden');
     
+    if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         timeLeft--;
         timerElement.innerText = timeLeft;
