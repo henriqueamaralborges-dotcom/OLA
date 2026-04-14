@@ -18,8 +18,8 @@ let lastTime = 0;
 let timerInterval;
 
 const player = {
-    x: 400,
-    y: 300,
+    x: 420,
+    y: 320,
     size: 40,
     speed: 5,
     emoji: '🛵',
@@ -29,11 +29,13 @@ const player = {
 };
 
 // Map Settings
-const tileSize = 100; // Size of a city block
-const streetWidth = 40;
+const tileSize = 200; 
+const streetWidth = 60;
+const sidewalkWidth = 15;
 
 let restaurants = [];
 let houses = [];
+let decorationBuildings = [];
 let currentOrder = null;
 let currentDelivery = null;
 
@@ -51,7 +53,7 @@ function init() {
     player.y = 320;
     player.hasOrder = false;
     
-    // Position restaurants at intersections
+    // Position entities carefully
     restaurants = [
         { x: 100, y: 100, emoji: assets.restaurant },
         { x: 700, y: 100, emoji: assets.restaurant },
@@ -60,13 +62,28 @@ function init() {
     ];
     
     houses = [];
-    const gridPoints = [200, 300, 400, 500, 600];
-    for(let i = 0; i < 10; i++) {
+    const points = [100, 300, 500, 700];
+    for(let i = 0; i < 8; i++) {
         houses.push({
-            x: gridPoints[Math.floor(Math.random() * gridPoints.length)],
-            y: gridPoints[Math.floor(Math.random() * gridPoints.length)],
+            x: points[Math.floor(Math.random() * points.length)],
+            y: points[Math.floor(Math.random() * points.length)],
             emoji: assets.house
         });
+    }
+
+    // Generate random decoration buildings for blocks
+    decorationBuildings = [];
+    for(let x = tileSize/2; x < canvas.width; x += tileSize) {
+        for(let y = tileSize/2; y < canvas.height; y += tileSize) {
+            // Randomize building variations
+            decorationBuildings.push({
+                x: x, y: y,
+                width: 70 + Math.random() * 40,
+                height: 70 + Math.random() * 40,
+                color: `hsl(${200 + Math.random() * 40}, 30%, ${20 + Math.random() * 20}%)`,
+                windows: Math.random() > 0.5
+            });
+        }
     }
 
     spawnOrder();
@@ -83,14 +100,13 @@ function spawnDelivery() {
     currentDelivery = { x: house.x, y: house.y, emoji: assets.target };
 }
 
-// Input Handling
+// Input
 const keys = {};
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
 function handleInput() {
-    player.dx = 0;
-    player.dy = 0;
+    player.dx = 0; player.dy = 0;
     if (keys['ArrowUp'] || keys['KeyW']) player.dy = -player.speed;
     if (keys['ArrowDown'] || keys['KeyS']) player.dy = player.speed;
     if (keys['ArrowLeft'] || keys['KeyA']) player.dx = -player.speed;
@@ -99,31 +115,21 @@ function handleInput() {
 
 function update(deltaTime) {
     if (!gameRunning) return;
-
     handleInput();
-
     player.x += player.dx;
     player.y += player.dy;
-
-    // Bounds
     player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
     player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
     const dist = (x1, y1, x2, y2) => Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
-
     if (!player.hasOrder && currentOrder) {
         if (dist(player.x + 20, player.y + 20, currentOrder.x, currentOrder.y) < 40) {
-            player.hasOrder = true;
-            currentOrder = null;
-            spawnDelivery();
+            player.hasOrder = true; currentOrder = null; spawnDelivery();
         }
     } else if (player.hasOrder && currentDelivery) {
         if (dist(player.x + 20, player.y + 20, currentDelivery.x, currentDelivery.y) < 40) {
-            player.hasOrder = false;
-            currentDelivery = null;
-            score++;
-            timeLeft += 8; // Extra time reward
-            scoreElement.innerText = score;
+            player.hasOrder = false; currentDelivery = null;
+            score++; timeLeft += 10; scoreElement.innerText = score;
             spawnOrder();
         }
     }
@@ -131,109 +137,137 @@ function update(deltaTime) {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 1. Draw City Grid (Streets and Blocks)
-    drawStreets();
-
-    // 2. Draw Buildings
-    ctx.font = '30px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
+    drawCity();
+    
+    // Buildings & Labels
+    decorationBuildings.forEach(b => drawBuildingShape(b));
+    
+    ctx.font = '30px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     restaurants.forEach(r => ctx.fillText(r.emoji, r.x, r.y));
     houses.forEach(h => ctx.fillText(h.emoji, h.x, h.y));
 
-    // 3. Draw GPS Route (The "Better GPS")
     const target = player.hasOrder ? currentDelivery : currentOrder;
-    if (target) {
-        drawGPS(target);
-    }
+    if (target) drawGPS(target);
 
-    // 4. Items
     if (currentOrder) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ffcc00';
+        ctx.shadowBlur = 15; ctx.shadowColor = '#ffcc00';
         ctx.fillText(currentOrder.emoji, currentOrder.x, currentOrder.y);
     }
     if (currentDelivery) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ff3333';
+        ctx.shadowBlur = 15; ctx.shadowColor = '#ff3333';
         ctx.fillText(currentDelivery.emoji, currentDelivery.x, currentDelivery.y);
     }
     ctx.shadowBlur = 0;
 
-    // 5. Draw Player
+    // Player
     ctx.font = '40px serif';
     ctx.fillText(player.emoji, player.x + 20, player.y + 20);
-    
     if(player.hasOrder) {
         ctx.font = '20px serif';
         ctx.fillText(assets.order, player.x + 20, player.y - 15);
     }
 }
 
-function drawStreets() {
-    // Fill Background with Block Color
-    ctx.fillStyle = '#2c3e50'; 
+function drawCity() {
+    // Fill with grass/base color
+    ctx.fillStyle = '#1e272e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Streets
-    ctx.fillStyle = '#34495e'; // Street Color
-    
-    // Vertical Streets
-    for(let x = 0; x <= canvas.width; x += 100) {
+    // Streets
+    ctx.fillStyle = '#3d3d3d';
+    for(let x = 100; x <= canvas.width; x += 200) {
         ctx.fillRect(x - streetWidth/2, 0, streetWidth, canvas.height);
-        // Paint Lane Lines
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath();
-        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
-        ctx.stroke();
+        // Paint Sidewalks
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(x - streetWidth/2 - sidewalkWidth, 0, sidewalkWidth, canvas.height);
+        ctx.fillRect(x + streetWidth/2, 0, sidewalkWidth, canvas.height);
+        ctx.fillStyle = '#3d3d3d'; // Reset
     }
-    
-    // Horizontal Streets
-    for(let y = 0; y <= canvas.height; y += 100) {
+    for(let y = 100; y <= canvas.height; y += 200) {
         ctx.fillRect(0, y - streetWidth/2, canvas.width, streetWidth);
-        // Paint Lane Lines
-        ctx.beginPath();
-        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
-        ctx.stroke();
+        // Paint Sidewalks
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(0, y - streetWidth/2 - sidewalkWidth, canvas.width, sidewalkWidth);
+        ctx.fillRect(0, y + streetWidth/2, canvas.width, sidewalkWidth);
+        ctx.fillStyle = '#3d3d3d';
+        
+        // Crosswalks
+        for(let x = 100; x <= canvas.width; x += 200) {
+            drawCrosswalk(x, y);
+        }
     }
-    ctx.setLineDash([]);
+}
+
+function drawCrosswalk(x, y) {
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    for(let i = -20; i <= 20; i += 10) {
+        ctx.fillRect(x + i - 2, y - 25, 4, 15);
+        ctx.fillRect(x + i - 2, y + 10, 4, 15);
+        ctx.fillRect(x - 25, y + i - 2, 15, 4);
+        ctx.fillRect(x + 10, y + i - 2, 15, 4);
+    }
+}
+
+function drawBuildingShape(b) {
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(b.x - b.width/2 + 5, b.y - b.height/2 + 5, b.width, b.height);
+    
+    // body
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+    
+    // roof (lighter)
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, 10);
+
+    // windows
+    if(b.windows) {
+        ctx.fillStyle = '#f1c40f';
+        for(let wx = -20; wx <= 20; wx += 15) {
+            for(let wy = -20; wy <= 20; wy += 15) {
+                if(Math.random() > 0.3) {
+                    ctx.fillRect(b.x + wx, b.y + wy, 5, 5);
+                }
+            }
+        }
+    }
 }
 
 function drawGPS(target) {
-    // Draw glowing line to target
-    ctx.strokeStyle = player.hasOrder ? 'rgba(255, 51, 51, 0.4)' : 'rgba(255, 204, 0, 0.4)';
-    ctx.lineWidth = 4;
-    ctx.setLineDash([5, 5]);
+    const dx = target.x - (player.x + 20);
+    const dy = target.y - (player.y + 20);
+    const distance = Math.sqrt(dx*dx + dy*dy);
+    const distMeters = Math.round(distance / 5);
+
+    // Route Line (Neon effect)
+    ctx.strokeStyle = player.hasOrder ? '#ff3333' : '#ffcc00';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 10]);
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = ctx.strokeStyle;
     ctx.beginPath();
     ctx.moveTo(player.x + 20, player.y + 20);
     ctx.lineTo(target.x, target.y);
     ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.setLineDash([]);
 
-    // Distance Label near player
-    const dx = target.x - (player.x + 20);
-    const dy = target.y - (player.y + 20);
-    const dist = Math.round(Math.sqrt(dx*dx + dy*dy) / 10);
-    
-    ctx.font = 'bold 14px Outfit';
+    // GPS Text
+    ctx.font = 'bold 16px Outfit';
     ctx.fillStyle = '#fff';
-    ctx.fillText(`${dist}m`, player.x + 20, player.y + 60);
+    ctx.fillText(`${distMeters}m`, player.x + 20, player.y + 65);
 
-    // Directional Arrow Indicator
+    // Arrow
     const angle = Math.atan2(dy, dx);
-    const radius = 50;
-    const ix = player.x + 20 + Math.cos(angle) * radius;
-    const iy = player.y + 20 + Math.sin(angle) * radius;
-    
+    const ix = player.x + 20 + Math.cos(angle) * 60;
+    const iy = player.y + 20 + Math.sin(angle) * 60;
     ctx.save();
     ctx.translate(ix, iy);
     ctx.rotate(angle);
     ctx.fillStyle = player.hasOrder ? '#ff3333' : '#ffcc00';
     ctx.beginPath();
-    ctx.moveTo(10, 0); ctx.lineTo(-5, 7); ctx.lineTo(-5, -7);
+    ctx.moveTo(12, 0); ctx.lineTo(-6, 8); ctx.lineTo(-6, -8);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -242,13 +276,9 @@ function drawGPS(target) {
 function gameLoop(timestamp) {
     const deltaTime = timestamp - lastTime;
     lastTime = timestamp;
-
     update(deltaTime);
     draw();
-
-    if (gameRunning) {
-        requestAnimationFrame(gameLoop);
-    }
+    if (gameRunning) requestAnimationFrame(gameLoop);
 }
 
 function startGame() {
@@ -257,16 +287,12 @@ function startGame() {
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     hud.classList.remove('hidden');
-    
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         timeLeft--;
         timerElement.innerText = timeLeft;
-        if (timeLeft <= 0) {
-            endGame();
-        }
+        if (timeLeft <= 0) endGame();
     }, 1000);
-
     requestAnimationFrame(gameLoop);
 }
 
