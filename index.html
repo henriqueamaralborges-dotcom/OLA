@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Delivery - Delivery Game</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <!-- HUD -->
+        <div id="hud" class="hidden">
+            <div class="hud-item">
+                <span class="label">Score:</span>
+                <span id="score">0</span>
+            </div>
+            <div class="hud-item pulse">
+                <span class="label">Time:</span>
+                <span id="timer">60</span>s
+            </div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay">
+            <div class="content">
+                <h1>🛵 FAST DELIVERY</h1>
+                <p>Pick up orders 🍔 and deliver to houses 🏠!</p>
+                <div class="controls-info">
+                    <p>Use <b>WASD</b> or <b>Arrows</b> to move</p>
+                </div>
+                <button id="start-button">START GAME</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="overlay hidden">
+            <div class="content">
+                <h1>GAME OVER</h1>
+                <p>Final Score</p>
+                <div id="final-score">0</div>
+                <button id="restart-button">RETRY</button>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
